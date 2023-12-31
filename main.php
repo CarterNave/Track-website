@@ -1,49 +1,57 @@
 <?php
-// The main file contains the database connection, session initializing, and functions, other PHP files will depend on this file.
-// Include thee configuration file
-include_once 'config.php';
-// We need to use sessions, so you should always start sessions using the below code.
-session_start();
-// No need to edit below
-try {
-	$pdo = new PDO('mysql:host=' . db_host . ';dbname=' . db_name . ';charset=' . db_charset, db_user, db_pass);
-} catch (PDOException $exception) {
-	// If there is an error with the connection, stop the script and display the error.
-	exit('Failed to connect to database!');
+// Include the root "main.php" file and check if user is logged-in...
+include_once '../config.php';
+include_once '../main.php';
+check_loggedin($pdo, '../index.php');
+$stmt = $pdo->prepare('SELECT * FROM accounts WHERE id = ?');
+$stmt->execute([ $_SESSION['id'] ]);
+$account = $stmt->fetch(PDO::FETCH_ASSOC);
+// Check if user is an admin...
+if ($account['role'] != 'Coach') {
+    exit('You do not have permission to access this page!');
 }
-// The below function will check if the user is logged-in and also check the remember me cookie
-function check_loggedin($pdo, $redirect_file = 'index.php') {
-	// Check for remember me cookie variable and loggedin session variable
-    if (isset($_COOKIE['rememberme']) && !empty($_COOKIE['rememberme']) && !isset($_SESSION['loggedin'])) {
-    	// If the remember me cookie matches one in the database then we can update the session variables.
-    	$stmt = $pdo->prepare('SELECT * FROM accounts WHERE rememberme = ?');
-    	$stmt->execute([ $_COOKIE['rememberme'] ]);
-    	$account = $stmt->fetch(PDO::FETCH_ASSOC);
-    	if ($account) {
-    		// Found a match, update the session variables and keep the user logged-in
-    		session_regenerate_id();
-    		$_SESSION['loggedin'] = TRUE;
-    		$_SESSION['name'] = $account['username'];
-    		$_SESSION['id'] = $account['id'];
-			$_SESSION['role'] = $account['role'];
-			$_SESSION['event_name']=$account['event_name'];
-    	} else {
-    		// If the user is not remembered redirect to the login page.
-    		header('Location: ' . $redirect_file);
-    		exit;
-    	}
-    } else if (!isset($_SESSION['loggedin'])) {
-    	// If the user is not logged in redirect to the login page.
-    	header('Location: ' . $redirect_file);
-    	exit;
-    }
+// Template admin header
+function template_admin_header($title) {
+echo <<<EOT
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,minimum-scale=1">
+		<title>$title</title>
+		<link href="admin.css" rel="stylesheet" type="text/css">
+		<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.1/css/all.css">
+	</head>
+	<body class="admin">
+        <header>
+            <h1>Admin Panel</h1>
+            <a class="responsive-toggle" href="#">
+                <i class="fas fa-bars"></i>
+            </a>
+        </header>
+        <aside class="responsive-width-100 responsive-hidden">
+            <a href="index.php"><i class="fas fa-users"></i>Accounts</a>
+            <a href="settings.php"><i class="fas fa-tools"></i>Settings</a>
+            
+            <a href="../logout.php"><i class="fas fa-sign-out-alt"></i>Log Out</a>
+
+        </aside>
+        <main class="responsive-width-100">
+EOT;
 }
-// Send activation email function
-function send_activation_email($email, $code) {
-	$subject = 'Account Activation Required';
-	$headers = 'From: ' . mail_from . "\r\n" . 'Reply-To: ' . mail_from . "\r\n" . 'Return-Path: ' . mail_from . "\r\n" . 'X-Mailer: PHP/' . phpversion() . "\r\n" . 'MIME-Version: 1.0' . "\r\n" . 'Content-Type: text/html; charset=UTF-8' . "\r\n";
-	$activate_link = activation_link . '?email=' . $email . '&code=' . $code;
-	$email_template = str_replace('%link%', $activate_link, file_get_contents('activation-email-template.html'));
-	mail($email, $subject, $email_template, $headers);
+// Template admin footer
+function template_admin_footer() {
+echo <<<EOT
+        </main>
+        <script>
+        document.querySelector(".responsive-toggle").onclick = function(event) {
+            event.preventDefault();
+            var aside_display = document.querySelector("aside").style.display;
+            document.querySelector("aside").style.display = aside_display == "flex" ? "none" : "flex";
+        };
+        </script>
+    </body>
+</html>
+EOT;
 }
 ?>
